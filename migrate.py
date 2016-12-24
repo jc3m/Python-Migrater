@@ -5,6 +5,8 @@ import os
 import sys
 import mysql.connector
 
+MIGRATION_TABLE_NAME = 'pythonMigrationTracker'
+
 def checkMigrationsFolder():
   if not os.path.isdir('migrations'):
     os.makedirs('migrations')
@@ -54,15 +56,33 @@ def genHandler(args):
 
 def migrateHandler(args):
   cnx = getConnector(args)
-  pass
+  cursor = cnx.cursor()
+  if not hasMigrationTable(cursor):
+    createMigrationTable(cursor, cnx)
+  cursor.close()
+  cnx.close()
 
 def rollbackHandler(args):
   cnx = getConnector(args)
+  cnx.close()
   pass
 
 def resetHandler(args):
   cnx = getConnector(args)
+  cnx.close()
   pass
+
+def hasMigrationTable(cursor):
+  cursor.execute("SHOW tables;")
+  for t in cursor:
+    if MIGRATION_TABLE_NAME in t:
+      return True
+  return False
+
+def createMigrationTable(cursor, cnx):
+  cursor.execute("CREATE TABLE {0} (version INT);".format(MIGRATION_TABLE_NAME))
+  cursor.execute("INSERT INTO {0} (version) VALUES (0);".format(MIGRATION_TABLE_NAME))
+  cnx.commit()
 
 def main():
   parser = argparse.ArgumentParser(description='Manage MySQL migrations')
