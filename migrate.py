@@ -3,6 +3,7 @@
 import argparse
 import os
 import sys
+import mysql.connector
 
 def checkMigrationsFolder():
   if not os.path.isdir('migrations'):
@@ -22,6 +23,13 @@ def getDbConfig(args):
     return config.mysql
   else:
     print("error: database connection information not specified")
+    sys.exit()
+
+def getConnector(args):
+  db = getDbConfig(args)
+  cnx = mysql.connector.connect(host=db["host"], user=db["user"],
+    password=db["password"], database=db["database"])
+  return cnx
 
 def handleArgs(args):
   command = args.command[0]
@@ -45,12 +53,15 @@ def genHandler(args):
     print('generating migration...')
 
 def migrateHandler(args):
+  cnx = getConnector(args)
   pass
 
 def rollbackHandler(args):
+  cnx = getConnector(args)
   pass
 
 def resetHandler(args):
+  cnx = getConnector(args)
   pass
 
 def main():
@@ -64,10 +75,10 @@ def main():
 
   checkMigrationsFolder()
   args = parser.parse_args()
-  db = getDbConfig(args)
   handleArgs(args)
+
+  # Debugging output
   print(args)
-  print(db)
 
 if __name__ == '__main__':
   main()
