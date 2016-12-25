@@ -52,7 +52,17 @@ def genHandler(args):
     return
   genType = args.command[1]
   if genType == 'migration':
-    print('generating migration...')
+    version = 0
+    for f in os.listdir('migrations'):
+      if os.path.isfile(os.path.join('migrations', f)) and f[:4].isnumeric():
+        version = max(version, int(f[:4]))
+    version += 1
+    name = 'migration'
+    if len(args.command) >= 3:
+      name = args.command[2]
+    outFileName = os.path.join('migrations', '%04d-%s-%s.sql')
+    open(outFileName % (version, 'up', name), 'w')
+    open(outFileName % (version, 'down', name), 'w')
 
 def migrateHandler(args):
   cnx = getConnector(args)
