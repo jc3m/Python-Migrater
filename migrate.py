@@ -33,6 +33,26 @@ def getConnector(args):
     password=db["password"], database=db["database"])
   return cnx
 
+def hasMigrationTable(cursor):
+  cursor.execute("SHOW tables;")
+  for t in cursor:
+    if MIGRATION_TABLE_NAME in t:
+      return True
+  return False
+
+def createMigrationTable(cursor, cnx):
+  cursor.execute("CREATE TABLE {0} (version INT NOT NULL);".format(MIGRATION_TABLE_NAME))
+  cursor.execute("INSERT INTO {0} (version) VALUES (0);".format(MIGRATION_TABLE_NAME))
+  cnx.commit()
+
+def setTableVersion(args, version):
+  cnx = getConnector(args)
+  cursor = cnx.cursor()
+  cursor.execute("UPDATE {0} SET version = {1};".format(MIGRATION_TABLE_NAME, version))
+  cnx.commit()
+  cursor.close()
+  cnx.close()
+
 def handleArgs(args):
   command = args.command[0]
   if command == 'generate':
@@ -69,6 +89,26 @@ def migrateHandler(args):
   cursor = cnx.cursor()
   if not hasMigrationTable(cursor):
     createMigrationTable(cursor, cnx)
+  upfiles = [f for f in os.listdir('migrations') if f[5:7] == 'up' and f[:4].isnumeric()]
+  upfiles.sort(key=lambda k: int(k[:4]))
+  cursor.execute("SELECT version FROM {0} LIMIT 1".format(MIGRATION_TABLE_NAME))
+  version = None
+  for t in cursor:
+    version = t[0]
+  reached = version
+  for q in upfiles:
+    if int(q[:4]) > version:
+      query = open(os.path.join('migrations', q)).read()
+      try:
+        cursor.execute(query)
+        reached = int(q[:4])
+      except mysql.connector.Error as err:
+        setTableVersion(args, reached)
+        print("Failed query in: {}".format(q))
+        print("{}".format(err))
+        exit(1)
+  setTableVersion(args, reached)
+  cnx.commit()
   cursor.close()
   cnx.close()
 
@@ -81,18 +121,6 @@ def resetHandler(args):
   cnx = getConnector(args)
   cnx.close()
   pass
-
-def hasMigrationTable(cursor):
-  cursor.execute("SHOW tables;")
-  for t in cursor:
-    if MIGRATION_TABLE_NAME in t:
-      return True
-  return False
-
-def createMigrationTable(cursor, cnx):
-  cursor.execute("CREATE TABLE {0} (version INT);".format(MIGRATION_TABLE_NAME))
-  cursor.execute("INSERT INTO {0} (version) VALUES (0);".format(MIGRATION_TABLE_NAME))
-  cnx.commit()
 
 def main():
   parser = argparse.ArgumentParser(description='Manage MySQL migrations')
