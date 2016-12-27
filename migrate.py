@@ -5,13 +5,19 @@ import os
 import sys
 import mysql.connector
 
-MIGRATION_TABLE_NAME = 'pythonMigrationTracker'
+MIGRATION_TABLE_NAME = 'pmt'
 
 def checkMigrationsFolder():
+  """Create a migration folder if it does not exist"""
   if not os.path.isdir('migrations'):
     os.makedirs('migrations')
 
+def passError(err):
+  print('error: {0}'.format(err))
+  sys.exit(1)
+
 def getDbConfig(args):
+  """Get database configurations either from command line arguments or config.py"""
   if (args.host is not None and args.user is not None and
     args.password is not None and args.database is not None):
     return {
@@ -24,34 +30,46 @@ def getDbConfig(args):
     import config
     return config.mysql
   else:
-    print("error: database connection information not specified")
-    sys.exit()
+    passError('Database connection information not specified')
 
 def getConnector(args):
+  """Get the MySQL database connector using db configs"""
   db = getDbConfig(args)
   cnx = mysql.connector.connect(host=db["host"], user=db["user"],
     password=db["password"], database=db["database"])
   return cnx
 
 def hasMigrationTable(cursor):
+  """Check if the migration table already exists in the database"""
   cursor.execute("SHOW tables;")
+  res = False
   for t in cursor:
     if MIGRATION_TABLE_NAME in t:
-      return True
-  return False
+      res = True
+  return res
 
 def createMigrationTable(cursor, cnx):
+  """Create the migration table and set version to 0"""
   cursor.execute("CREATE TABLE {0} (version INT NOT NULL);".format(MIGRATION_TABLE_NAME))
   cursor.execute("INSERT INTO {0} (version) VALUES (0);".format(MIGRATION_TABLE_NAME))
   cnx.commit()
 
 def setTableVersion(args, version):
+  """Set the current version in the database table"""
   cnx = getConnector(args)
   cursor = cnx.cursor()
   cursor.execute("UPDATE {0} SET version = {1};".format(MIGRATION_TABLE_NAME, version))
   cnx.commit()
   cursor.close()
   cnx.close()
+
+def getTableVersion(cursor):
+  """Get the current version from the migration table"""
+  version = None
+  cursor.execute("SELECT version FROM {0} LIMIT 1".format(MIGRATION_TABLE_NAME))
+  for t in cursor:
+    version = t[0]
+  return version
 
 def handleArgs(args):
   command = args.command[0]
@@ -64,7 +82,7 @@ def handleArgs(args):
   elif command == 'reset':
     resetHandler(args)
   else:
-    print('error: unrecognized command ' + command)
+    passError('unrecognized command ' + command)
 
 def genHandler(args):
   if len(args.command) < 2:
@@ -91,10 +109,7 @@ def migrateHandler(args):
     createMigrationTable(cursor, cnx)
   upfiles = [f for f in os.listdir('migrations') if f[5:7] == 'up' and f[:4].isnumeric()]
   upfiles.sort(key=lambda k: int(k[:4]))
-  cursor.execute("SELECT version FROM {0} LIMIT 1".format(MIGRATION_TABLE_NAME))
-  version = None
-  for t in cursor:
-    version = t[0]
+  version = getTableVersion(cursor)
   reached = version
   for q in upfiles:
     if int(q[:4]) > version:
@@ -106,7 +121,7 @@ def migrateHandler(args):
         setTableVersion(args, reached)
         print("Failed query in: {}".format(q))
         print("{}".format(err))
-        exit(1)
+        sys.exit(1)
   setTableVersion(args, reached)
   cnx.commit()
   cursor.close()
@@ -114,6 +129,34 @@ def migrateHandler(args):
 
 def rollbackHandler(args):
   cnx = getConnector(args)
+  cursor = cnx.cursor()
+  serverVersion = getTableVersion(cursor)
+  if serverVersion <= 0:
+    passError('Nothing to rollback')
+  downfiles = [f for f in os.listdir('migrations') if f[5:9] == 'down' and f[:4].isnumeric()]
+  downfiles.sort(key=lambda k: int(k[:4]), reverse=True)
+  rollbackVersion = serverVersion
+  if args.version is not None:
+    rollbackVersion = args.version
+  curVersion = serverVersion
+  for i in range(len(downfiles)):
+    fileVer = int(downfiles[i][:4])
+    if fileVer <= serverVersion and fileVer >= rollbackVersion:
+      query = open(os.path.join('migrations', downfiles[i])).read()
+      try:
+        cursor.execute(query)
+        if i == len(downfiles) - 1:
+          curVersion = 0
+        else:
+          curVersion = int(downfiles[i+1][:4])
+      except mysql.connector.Error as err:
+        setTableVersion(args, curVersion)
+        print("Failed query in: {}".format(downfiles[i]))
+        print("{}".format(err))
+        sys.exit(1)
+  setTableVersion(args, curVersion)
+  cnx.commit()
+  cursor.close()
   cnx.close()
   pass
 
@@ -129,7 +172,7 @@ def main():
   parser.add_argument('--user', '-u')
   parser.add_argument('--password', '-p')
   parser.add_argument('--database', '-db')
-  parser.add_argument('--version', type=int)
+  parser.add_argument('--version', '-v', type=int)
 
   checkMigrationsFolder()
   args = parser.parse_args()
