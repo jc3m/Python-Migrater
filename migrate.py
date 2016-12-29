@@ -81,6 +81,8 @@ def handleArgs(args):
     rollbackHandler(args)
   elif command == 'reset':
     resetHandler(args)
+  elif command == 'version':
+    versionHandler(args)
   else:
     passError('unrecognized command ' + command)
 
@@ -165,6 +167,14 @@ def resetHandler(args):
   cnx.close()
   pass
 
+def versionHandler(args):
+  cnx = getConnector(args)
+  cursor = cnx.cursor()
+  v = getTableVersion(cursor)
+  print("Server migration version: {0}".format(v))
+  cursor.close()
+  cnx.close()
+
 def main():
   parser = argparse.ArgumentParser(description='Manage MySQL migrations')
   parser.add_argument('command', nargs='+')
@@ -179,7 +189,7 @@ def main():
   handleArgs(args)
 
   # Debugging output
-  print(args)
+  # print(args)
 
 if __name__ == '__main__':
   main()
