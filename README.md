@@ -22,13 +22,13 @@ git clone https://github.com/jc3m/Python-Migrater.git
 ```
 
 Supported commands:
-- =generate migration [migrationName]= --- Create up and down migration files, provide an optional name
-- =migrate= --- Run migration on given server
+- `generate migration [migrationName]` &mdash; Create up and down migration files, provide an optional name
+- `migrate` &mdash; Run migration on given server
   - You must provide server connection details specified below
-- =rollback= --- Rollback the server to the previous migration
-  - =-v= or =--version= --- If this is specified, rollback the server up to and including the specified version
+- `rollback` &mdash; Rollback the server to the previous migration
+  - `-v` or `--version` &mdash; If this is specified, rollback the server up to and including the specified version
   - You must provide server connection details specified below
-- =version= --- Get the current version your server has migrated to
+- `version` &mdash; Get the current version your server has migrated to
 
 ### Server connection details
 
