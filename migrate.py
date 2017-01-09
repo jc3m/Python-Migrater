@@ -28,6 +28,11 @@ def getDbConfig(args):
     }
   elif os.path.exists('config.py'):
     import config
+    if (args.production):
+      try:
+        return config.production
+      except:
+        passError('Production information not specified')
     return config.mysql
   else:
     passError('Database connection information not specified')
@@ -183,13 +188,11 @@ def main():
   parser.add_argument('--password', '-p')
   parser.add_argument('--database', '-db')
   parser.add_argument('--version', '-v', type=int)
+  parser.add_argument('--production', action='store_true')
 
   checkMigrationsFolder()
   args = parser.parse_args()
   handleArgs(args)
-
-  # Debugging output
-  # print(args)
 
 if __name__ == '__main__':
   main()
