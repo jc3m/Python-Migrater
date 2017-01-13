@@ -130,6 +130,7 @@ def migrateHandler(args):
         print("{}".format(err))
         sys.exit(1)
   setTableVersion(args, reached)
+  versionHandler(args)
   cnx.commit()
   cursor.close()
   cnx.close()
@@ -162,10 +163,10 @@ def rollbackHandler(args):
         print("{}".format(err))
         sys.exit(1)
   setTableVersion(args, curVersion)
+  versionHandler(args)
   cnx.commit()
   cursor.close()
   cnx.close()
-  pass
 
 def resetHandler(args):
   cnx = getConnector(args)
